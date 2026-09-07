@@ -6,8 +6,8 @@
 
 ## Что лежит в репозитории
 
-- [`materials/presentations`](materials/presentations) — шесть учебных презентаций (введение, документация, Python/ROS, симулятор, развитие компетенции).
-- [`materials/pdf`](materials/pdf) — презентация про датасет и модели, расписание.
+- [`materials/presentations`](materials/presentations) — пять учебных презентаций (введение, документация, Python/ROS, симулятор, развитие компетенции).
+- [`materials/pdf`](materials/pdf) — шестая презентация про датасет и модели, расписание.
 - [`materials/tasks/04-Конкурсное задание.docx`](materials/tasks/04-Конкурсное%20задание.docx) — конкурсное задание.
 - [`materials/tasks/05-Критерии_оценки.xlsx`](materials/tasks/05-Критерии_оценки.xlsx) — критерии оценки.
 - [`basic`](basic) — минимальные примеры движения, остановки, лифта, чтения odometry/lidar и BFS-маршрута.
