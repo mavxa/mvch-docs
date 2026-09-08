@@ -24,9 +24,20 @@ if [[ -r /etc/os-release ]]; then
   fi
 fi
 
-for command_name in git python3 ros2 colcon webots; do
+for command_name in git python3 code ros2 colcon webots bun; do
   check_command "$command_name"
 done
+
+for optional_name in node npm opencode; do
+  if command -v "$optional_name" >/dev/null 2>&1; then
+    printf '[OK] необязательная команда %s: %s\n' "$optional_name" "$(command -v "$optional_name")"
+  else
+    printf '[INFO] необязательная команда %s не установлена\n' "$optional_name"
+  fi
+done
+
+printf '[INFO] RMW_IMPLEMENTATION=%s\n' "${RMW_IMPLEMENTATION:-не задано}"
+printf '[INFO] ROS_DOMAIN_ID=%s\n' "${ROS_DOMAIN_ID:-не задано}"
 
 if [[ -r /opt/ros/jazzy/setup.bash ]]; then
   set +u
