@@ -202,6 +202,10 @@ ros2 topic list | sort
 ros2 topic echo /RMC1/odometry --once
 ros2 topic echo /RMC2/odometry --once
 ros2 topic echo /RMC2/scan_front --once
+ros2 topic info /RMC2/camera_bottom/aruco_id -v
+ros2 topic echo /RMC2/camera_bottom/aruco_id --once
+ros2 topic info /RMC2/lift_status -v
+ros2 topic info /RMC1/arm95/svcam/right/image/compressed -v
 ```
 
 ## Git bundle на флешку

@@ -16,10 +16,16 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (
+    DurabilityPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+    qos_profile_sensor_data,
+)
 from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
+from tf2_msgs.msg import TFMessage
 from tf2_ros import Buffer, TransformException, TransformListener
 
 
@@ -117,6 +123,26 @@ class ArucoDrive(Node):
         self.odom_frame = f"{self.robot}/odom"
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
+        if not args.sim:
+            tf_qos = QoSProfile(
+                depth=100,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+                durability=DurabilityPolicy.VOLATILE,
+            )
+            static_tf_qos = QoSProfile(
+                depth=100,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+            self.create_subscription(
+                TFMessage, f"/{self.robot}/tf", self.on_tf, tf_qos
+            )
+            self.create_subscription(
+                TFMessage,
+                f"/{self.robot}/tf_static",
+                self.on_tf_static,
+                static_tf_qos,
+            )
         self.publisher = self.create_publisher(
             Twist, f"/{self.robot}/cmd_vel", 10
         )
@@ -132,9 +158,22 @@ class ArucoDrive(Node):
             self.on_scan,
             qos_profile_sensor_data,
         )
-        self.create_subscription(
-            String, f"/{self.robot}/aruco_id", self.on_marker, 10
+        self.aruco_topic = (
+            f"/{self.robot}/aruco_id"
+            if args.sim
+            else f"/{self.robot}/camera_bottom/aruco_id"
         )
+        self.create_subscription(String, self.aruco_topic, self.on_marker, 10)
+
+    def on_tf(self, message):
+        for transform in message.transforms:
+            self.tf_buffer.set_transform(transform, f"{self.robot} namespaced tf")
+
+    def on_tf_static(self, message):
+        for transform in message.transforms:
+            self.tf_buffer.set_transform_static(
+                transform, f"{self.robot} namespaced tf_static"
+            )
 
     def on_odometry(self, message):
         pose = message.pose.pose
@@ -280,9 +319,9 @@ class ArucoDrive(Node):
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", type=int, help="ID целевой ArUco")
-    parser.add_argument("--robot", default="RMC2", help="RMC1 или RMC2")
-    parser.add_argument("--rows", type=int, default=6)
-    parser.add_argument("--columns", type=int, default=6)
+    parser.add_argument("--robot", choices=("RMC1", "RMC2"), default="RMC2")
+    parser.add_argument("--rows", type=int)
+    parser.add_argument("--columns", type=int)
     parser.add_argument("--spacing", type=float, default=1.0, help="Шаг сетки, м")
     parser.add_argument("--blocked", type=int, nargs="*", default=[])
     parser.add_argument("--max-speed", type=float, default=0.12, help="м/с")
@@ -295,6 +334,15 @@ def arguments():
     parser.add_argument("--yes", action="store_true", help="Не ждать Enter")
     parser.add_argument("--sim", action="store_true", help="Использовать /clock Webots")
     args = parser.parse_args()
+    if args.rows is None:
+        args.rows = 6 if args.sim else 5
+    if args.columns is None:
+        args.columns = 6 if args.sim else 5
+    if not args.sim and args.robot != "RMC2":
+        parser.error(
+            "Документация физического RMC1 не содержит нижнюю ArUco-камеру; "
+            "drive_to_aruco поддерживает реальный RMC2"
+        )
     count = args.rows * args.columns
     if args.rows <= 0 or args.columns <= 0 or not 0 <= args.target < count:
         parser.error(f"target должен быть в диапазоне 0..{count - 1}")
@@ -319,7 +367,7 @@ def main():
         print("Маршрут:", " -> ".join(map(str, route)))
         print(
             f"Топики: /{node.robot}/cmd_vel, /{node.robot}/odometry, "
-            f"/{node.robot}/aruco_id, {args.scan_topic or f'/{node.robot}/scan_front'}"
+            f"{node.aruco_topic}, {args.scan_topic or f'/{node.robot}/scan_front'}"
         )
         if not args.yes:
             input("Проверьте поле и держите аппаратный STOP. Enter — начать: ")

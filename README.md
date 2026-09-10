@@ -8,7 +8,7 @@
 
 - [`materials/presentations`](materials/presentations) — пять учебных презентаций (введение, документация, Python/ROS, симулятор, развитие компетенции).
 - [`materials/pdf`](materials/pdf) — шестая презентация про датасет и модели, расписание.
-- [`materials/final`](materials/final) — полный очный финал: инфраструктурный лист, КЗ модулей А–Д, критерии и приложения.
+- [`materials/final`](materials/final) — полный очный финал: инфраструктурный лист, КЗ модулей А–Д, критерии, приложения и выданная документация физических РМК.
 - [`materials/tasks`](materials/tasks) — отдельный ранний/отборочный комплект по навигации; не путать с полным финалом.
 - [`basic`](basic) — примеры для реального ROS 2: движение к ArUco с odometry/TF/lidar, ручной `cmd_vel`, остановка, лифт, мониторинг и BFS-маршрут.
 - [`setup/FROM_ZERO.md`](setup/FROM_ZERO.md) — подготовка полностью чистого Windows/Ubuntu и день настройки оборудования.
@@ -22,12 +22,13 @@
 ## Порядок чтения
 
 1. `materials/final/04-final-task.docx` и `materials/final/05-final-criteria.xlsx` — сначала понять конечный результат и баллы очного финала.
-2. `1. Введение...` и `2. Документация...` — термины, РМК и структура компетенции.
-3. `3. Разбор...` — Python, ROS 2, топики и сервисы.
-4. `4. Практика... (симулятор)` — установка и работа с Webots.
-5. `5. Практика... (датасет + модели)` — разметка и обучение детектора.
-6. `setup/FROM_ZERO.md` — подготовка ПК и оборудования.
-7. README каждого модуля в `mvch` — точные команды текущего решения.
+2. `materials/final/09-robot-documentation.pdf` — реальные размеры, топики, камеры, лифт и сеть РМК.
+3. `1. Введение...` и `2. Документация...` — термины, РМК и структура компетенции.
+4. `3. Разбор...` — Python, ROS 2, топики и сервисы.
+5. `4. Практика... (симулятор)` — установка и работа с Webots.
+6. `5. Практика... (датасет + модели)` — разметка и обучение детектора.
+7. `setup/FROM_ZERO.md` — подготовка ПК и оборудования.
+8. README каждого модуля в `mvch` — точные команды текущего решения.
 
 ## Быстрый старт на подготовленной VM
 
@@ -177,6 +178,29 @@ ros2 topic echo /RMC2/scan_front --once
 
 Точный список топиков зависит от активного launch-файла. Если `scan_front` отсутствует, сначала посмотрите `ros2 topic list | sort`, а не меняйте код вслепую.
 
+## ROS API физических роверов из новой документации
+
+Физическое поле на схеме имеет сетку 5 × 5 и ID 0–24. Система координат та же,
+что использует код: `0=(0,0)`, `1=(0,+1 м)`, `5=(-1 м,0)`. Webots остаётся
+отдельным профилем 6 × 6 с ID 0–35.
+
+| Назначение | RMC1 | RMC2 |
+| --- | --- | --- |
+| Скорость | `/RMC1/cmd_vel` (`Twist`) | `/RMC2/cmd_vel` (`Twist`) |
+| Одометрия | `/RMC1/odometry` | `/RMC2/odometry` |
+| Лидары | `/RMC1/scan_front`, `/scan_back`, `/scan` | `/RMC2/scan_front`, `/scan_back`, `/scan` |
+| TF | `/RMC1/tf`, `/RMC1/tf_static` | `/RMC2/tf`, `/RMC2/tf_static` |
+| Камера | `/RMC1/arm95/svcam/right/image/compressed` | `/RMC2/camera_bottom/image` |
+| ArUco ID | в PDF отдельный топик не указан | `/RMC2/camera_bottom/aruco_id` (`String`) |
+| Лифт | — | `/RMC2/lift` (`Float64`), `/RMC2/lift_status` (`String`, Transient Local) |
+
+Лифт принимает `0.0` для нижнего положения и `0.05` для верхнего; статусы:
+`lowered`, `moving`, `raised`. В PDF у RMC1 камера с суффиксом `/compressed`
+помечена типом `sensor_msgs/Image`, а не `CompressedImage`, и топик `CameraInfo`
+не перечислен. Это нужно обязательно проверить командой `ros2 topic info -v` на
+оборудовании: код умеет работать с обоими типами, а калибровку при отсутствии
+`CameraInfo` можно передать аргументами.
+
 ## Если на реальном ровере другие датчики или ROS API
 
 Успешный запуск Python-процесса ещё не означает, что ровер готов ехать. Текущие
@@ -208,12 +232,14 @@ ros2 topic list -t | tee ~/equipment-audit/topics.txt
 ros2 topic info /RMC2/cmd_vel -v | tee ~/equipment-audit/cmd_vel.txt
 ros2 topic info /RMC2/odometry -v | tee ~/equipment-audit/odometry.txt
 ros2 topic info /RMC2/scan_front -v | tee ~/equipment-audit/scan_front.txt
-ros2 topic info /RMC2/aruco_id -v | tee ~/equipment-audit/aruco_id.txt
+ros2 topic info /RMC2/camera_bottom/aruco_id -v | tee ~/equipment-audit/aruco_id.txt
+ros2 topic info /RMC2/lift_status -v | tee ~/equipment-audit/lift_status.txt
+ros2 topic info /RMC1/arm95/svcam/right/image/compressed -v | tee ~/equipment-audit/rmc1_camera.txt
 
 timeout 5 ros2 topic hz /RMC2/odometry
 timeout 5 ros2 topic hz /RMC2/scan_front
 ros2 topic echo /RMC2/odometry --once
-ros2 topic echo /RMC2/aruco_id --once
+ros2 topic echo /RMC2/camera_bottom/aruco_id --once
 
 ros2 run tf2_ros tf2_echo RMC2/odom RMC2/base_link
 ros2 run tf2_ros tf2_echo RMC2/odom aruco_0
@@ -257,8 +283,8 @@ python3 basic/watch_robot.py --robot RMC2
 
 | Модуль | Решение | Основной запуск |
 | --- | --- | --- |
-| Б | навигация RMC2 по ArUco | `python3 module2/module_b.py --target 14 --sim` |
-| В | YOLO + ARM95 | `module3/.venv/bin/python module3/module3.py --target hammer` |
+| Б | навигация RMC2 по ArUco | реальный: `python3 module2/module_b.py --target 14`; Webots: добавить `--sim` |
+| В | YOLO + ARM95 | реальный: `module3/.venv/bin/python module3/module3.py --target hammer`; Webots: добавить `--sim` |
 | Г | веб-FMS двух роверов | `cd module4 && bun run start` |
 | Д | общий сценарий RMC1 + RMC2 | `module3/.venv/bin/python module5/module5.py --target hammer` |
 
